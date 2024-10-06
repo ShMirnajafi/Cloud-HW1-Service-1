@@ -11,12 +11,18 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping(path = "api/v1/request")
 public class RequestController {
 
-    RequestService requestService;
+    private RequestService requestService;
 
-    @PostMapping
-    public ResponseEntity<String> getRequest(@RequestBody Request request) {
-        //TODO: receive image in json
+    @PostMapping(value = "/upload")
+    public ResponseEntity<String> getRequest(@ModelAttribute Request request) {
+        Request userRequest = new Request(request.getEmail(), request.getImage());
+
+        if (userRequest.getImage() == null || userRequest.getImage().isEmpty()) {
+            return new ResponseEntity<>("No image received",HttpStatus.BAD_REQUEST);
+        }
+
         String requestId = requestService.getRequest(request);
+
         if (!requestId.isEmpty()) {
             return new ResponseEntity<>(requestId, HttpStatus.CREATED);
         } else {
@@ -25,7 +31,7 @@ public class RequestController {
     }
 
     @GetMapping(value = "/{id}")
-    public ResponseEntity<RequestStatus> getRequestStatus(@PathVariable String id) {
+    public ResponseEntity<String> getRequestStatus(@PathVariable String id) {
         if (requestService.getRequestStatusValidation(id)) {
             return new ResponseEntity<>(requestService.getRequestStatus(id), HttpStatus.OK);
         } else {

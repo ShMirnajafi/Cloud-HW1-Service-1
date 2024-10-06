@@ -1,34 +1,60 @@
 package com.example.demo.request;
 
+import com.example.demo.objectstorage.ObjectStorageService;
+import com.example.demo.rabbitmq.RabbitMQProducer;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
+import java.util.UUID;
 
 @AllArgsConstructor
 @Service
 public class RequestService {
 
-    RequestRepository requestRepository;
+    private RequestRepository requestRepository;
+    private ObjectStorageService objectStorageService;
+    private RabbitMQProducer rabbitMQProducer;
 
     public String getRequest(Request request) {
-        //TODO: generate id
-        String id;
+        String id = UUID.randomUUID().toString();
 
-        //TODO: save image in storage service
+        // save image in storage service
+        try {
+            // Convert MultipartFile to a Path and call the upload method
+            Path tempFile = Files.createTempFile("upload-", request.getImage().getOriginalFilename());
+            request.getImage().transferTo(tempFile.toFile());
 
-        //TODO: save request in database
+            objectStorageService.uploadFile(request.getImage().getOriginalFilename(), tempFile);
+        } catch (Exception e) {
+            return "";
+        }
 
-        //TODO: save id in rabbitqm
+        RequestData requestData = new RequestData(id, request.getEmail(), "pending", null, null);
+
+        // save request in database
+        requestRepository.save(requestData);
+
+        // save id in rabbitmq
+        rabbitMQProducer.sendMessage(id);
+
+        return id;
     }
 
     public boolean getRequestStatusValidation(String id) {
-        boolean isIdValid = false;
-
-        //TODO: check if id is in database
+        Optional<RequestData> request = requestRepository.findById(id);
+        return request.isPresent();
     }
 
-    public RequestStatus getRequestStatus(String id) {
-        RequestStatus requestStatus;
+    public String getRequestStatus(String id) {
+        Optional<RequestData> request = requestRepository.findById(id);
 
-        //TODO: get status column from database
+        if (!request.isPresent()) {
+            throw new RuntimeException("No record found for this id: " + id);
+        }
+
+        return request.get().getStatus();
     }
 }
